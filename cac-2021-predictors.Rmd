@@ -1,0 +1,897 @@
+---
+title: "Practicing with BEARS: active ingredients in semantic feature analysis"
+description: |
+    This article provides a reproducible analysis of this 2021 poster
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    highlight: kate
+    code_folding: show
+    toc: true
+    #toc_depth: 3
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+---
+
+```{=html}
+<script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.8/dist/clipboard.min.js"></script>
+```
+
+```{js, echo = FALSE}
+
+var clipboard = new ClipboardJS('.btn');
+
+clipboard.on('success', function(e) {
+    console.info('Action:', e.action);
+    console.info('Text:', e.text);
+    console.info('Trigger:', e.trigger);
+
+    e.clearSelection();
+});
+
+clipboard.on('error', function(e) {
+    console.error('Action:', e.action);
+    console.error('Trigger:', e.trigger);
+});
+
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = F, message = F, cache = T)
+```
+
+Robert Cavanaugh,^1,2^ Yina Quique,^3^ Emily Boss,^4^ William D. Hula,^2^ Michael Walsh Dickey,^1,2^ William S. Evans ^1^
+
+^1^ University of Pittsburgh\
+^2^ VA Pittsburgh Healthcare System\
+^3^ Northwestern University\
+^4^ Integrated Aphasia Care\
+
+# Abstract
+
+<details>
+  <summary>Click to read abstract</summary>
+
+**Background:** Specifying the active ingredients in aphasia interventions is vital for increasing efficacy in clinical research, establishing treatment candidacy, and optimizing clinical implementation. In semantic feature analysis (SFA; Boyle, 2010), retrieval of target words and features may strengthen connections within the lexical-semantic network; thus improvement is expected on trained & semantically-related words with shared features. Previously, we found that the number of patient-generated features in treatment moderated naming outcomes for treated and related words and may be an essential active ingredient in SFA (Gravier et al., 2018, Evans et al., 2021). However, in semantic feature verification (SFV), participants verify features instead of generating them and retrieval practice (Middleton et al., 2016) comprises a larger proportion of treatment time. Thus, the purpose of this secondary analysis is to evaluate the role of feature verification and two retrieval practice components on naming outcomes in semantic feature verification treatment. 
+
+*Hypothesis 1: If SFA and SFV operate under the same mechanism, successful feature verification should be associated with improvement on treated and semantically-related, untreated words.*
+
+*Hypothesis 2: If SFV improves lexical access via retrieval practice, successful retrieval practice should be associated with naming outcomes for treated, but not related, untreated words.*
+
+**Method:** 9 people with aphasia received 25 hours of SFV and a meta-cognitive treatment called BEARS (Balancing Effort, Accuracy, and Response Speed) over 9-10 sessions (Evans et al., in press). 40 treated and 20 semantically related words matched for complexity were probed over 3-5 baselines sessions, before each treatment session, and one week and one month following treatment. The treatment paradigm included effortful retrieval, feature verification questions, and a second, facilitated retrieval attempt. Due to rising baselines, data were filtered for difficult items at baseline (accuracy <= 50%). Separate item-level Bayesian generalized linear mixed effect models (Bürkner, 2017) were used to evaluate the interaction between the number of correct attempts of each component (effortful retrieval, feature verification, and facilitated retrieval) and timepoint (baseline, exit, and follow-up) for treated and semantically related words. Aphasia severity (Comprehensive Aphasia Test mean T-score) was included as a covariate.
+
+**Results:** More successful feature verification attempts were not associated with any SFV outcomes. More successful retrieval practice attempts (facilitated & effortful) were associated with greater odds of retrieval at exit and follow-up. There was only weak and uncertain evidence that either retrieval practice component was associated improvements in untrained, semantically related words (posterior probability < 0.75). Visualization of the posterior distributions of individual-adjusted interaction coefficients revealed a relationship between the effect of additional successful effortful retrieval attempts and the severity of pre-treatment naming deficits. 
+
+**Discussion:** These findings are inconsistent with the hypothesis that successful feature verification served as an active ingredient in this particular implementation of SFV. Both retrieval components appear to moderate treatment response for trained but not related words. Successful effortful retrieval practice effect may more important for people with more severe anomia. Alternatively, items may have been overtrained for milder participants (retrieval was likely most effortful for participants with more severe naming deficits). The role of the meta-cognitive, speed-focused treatment component may also have impacted these findings. Findings are also correlational: they cannot distinguish practice-related and individual-level effects without experimental control. Future work should focus on comparative effectiveness of different treatment components, treatment follow-up, and stimulus generalization.
+
+This research was funded by the VA Pittsburgh Healthcare System Geriatric Research Education and Clinical Center, the VA Healthcare Network- VISN 4 Competitive Career Development Fund, and the VA RR&D service (IK1 RX002475), with funds awarded to William S. Evans. This work was also supported by a NIH-NCATS TL1TR001858 (PI: Kraemer) predoctoral fellowship awarded to Robert Cavanaugh. 
+
+Boyle, M. (2010). Semantic feature analysis treatment for aphasic word retrieval impairments: What’s in a name? Topics in Stroke Rehabilitation, 17(6), 411–422. 
+
+Bürkner, P. C. (2017). brms: An R package for Bayesian multilevel models using Stan. Journal of statistical software, 80(1), 1-28.
+
+Evans, WS, Cavanaugh, RB, Quique, Y, Boss, E, Starns, JJ, Hula, WD. (in press). Playing with BEARS: Balancing Effort, Accuracy, and Response Speed in a Semantic Feature Verification Anomia Treatment Game. Journal of Speech, Language, and Hearing Research.
+
+Evans, WS, Cavanaugh, R, Gravier, M, Autenreith, A, Doyle, P, Hula, W, Dickey, MW (2021). Effects of Semantic Feature Type, Diversity, and Quantity on Semantic Feature Analysis Treatment Outcomes in Aphasia. American Journal of Speech-Language Pathology. 30(1S), 344-358.
+
+Gravier, M. L., Dickey, M. W., Hula, W. D., Evans, W. S., Owens, R. L., Winans-Mitrik, R. L., & Doyle, P. J. (2018). What Matters in Semantic Feature Analysis: Practice-Related Predictors of Treatment Response in Aphasia. American Journal of Speech-Language Pathology, 27(1S), 438–453. 
+
+Middleton, E. L., Schwartz, M. F., Rawson, K. A., Traut, H., & Verkuilen, J. (2016). Towards a theory of learning for naming rehabilitation: Retrieval practice and spacing effects. Journal of Speech, Language, and Hearing Research. 
+
+</details>
+
+# Read in Data
+
+```{r}
+library(tidyverse)
+library(patchwork)
+library(performance)
+library(brms)
+library(here)
+library(lme4)
+library(cmdstanr)
+library(tidybayes)
+library(bayestestR)
+library(tidytext)
+library(hrbrthemes)
+library(DT)
+
+# treated data
+treated_data <- read.csv(here('data', 'treated-naming-hard-deid.csv'),
+                         stringsAsFactors = T) %>% 
+  select(-X)
+  
+# untreated, related data
+related_data <- read.csv(here('data', 'related-naming-hard-deid.csv'),
+                         stringsAsFactors = T) %>% 
+  select(-X)
+
+```
+
+# Treated Models
+
+Preview dataset
+
+```{r}
+treated_data %>%
+  slice(1:100) %>%
+  rmarkdown::paged_table()
+```
+
+## Plot changes in naming accuracy
+
+```{r}
+treated_data %>%
+  filter(feat_condition == 'unprimed_ret') %>%
+  mutate(timepoint = ifelse(timepoint == 'baseline', 0,
+                            ifelse(timepoint == 'exit', 1, 2))) %>%
+  group_by(player_deid, timepoint) %>%
+  summarize(response = mean(response)) %>%
+  ggplot(aes(timepoint, y = response, color = player_deid, group = player_deid)) +
+  geom_point(size = 1.5) +
+  geom_line() +
+  ylim(0,1)
+
+```
+
+## Setup contrasts for treated data
+
+```{r}
+
+# baseline is reference
+treated_data$timepoint <- relevel(treated_data$timepoint, ref = "baseline")
+contrasts(treated_data$timepoint) <- contr.treatment(3)
+colnames(contrasts(treated_data$timepoint)) <- c('baseline_v_exit',
+                                                'baseline_v_followup')
+
+contrasts(treated_data$timepoint)
+
+```
+
+## Prior predictive check:
+
+Priors are generated from our expectations here and in log-odds. Performance is likely to be below 50 accuracy at baseline given our data manipulation. A prior on the intercept of -1 corresponds to roughly 35% accuracy at baseline and a standard deviation of 2 provides a relatively wide range of our suggested values. The second prior on the other population level effects (Normal~0,2) does not push beta-coefficients to be positive or negative but suggests that the coeefficient is likely to be between -4 and 4. In log-odds units these would be very large effect sizes, and so we suggest that these priors are reasonable. The default prior on the standard deviation is a half student-t distribution (Student T~3, 0, 2.5). The prior on the correlation matrix is a LKJ prior, which is similar to a beta distribution. 
+
+```{r}
+# not run
+brm.priors <- brm(response ~ 0 + Intercept +
+                      correct_productions.cen*timepoint + cat_meanT.cen +
+                      (timepoint*correct_productions.cen|player_deid) + (timepoint|target),
+                    family = bernoulli(),
+                    data = treated_data %>% 
+                      filter(feat_condition == 'features_ver'),
+                    iter = 1000,
+                    warmup = 500,
+                    inits = 'random',
+                    control = list(adapt_delta = .9),
+                    prior = c(
+                      prior(normal(-1, 2), class = "b", coef = "Intercept"),
+                      prior(normal(0,2), class = "b")
+                    ),
+                    chains = 4,
+                    cores = 4,
+                    sample_prior = "only",
+                    backend = 'cmdstan',
+                  file = here('Rdata', 'brm_priors.RDS'),
+                  file_refit = "on_change"
+                  
+)
+```
+
+```{r, fig.height = 3}
+data = mcmc_plot(brm.priors, type = "hist")$data 
+choices = unique(data$Parameter)[c(1,2,8,17)]
+data = data %>%
+  filter(Parameter %in% choices) %>%
+  mutate(Parameter = gsub('_.*','',Parameter))
+
+  data %>%
+    ggplot(aes(x = value, fill = Parameter)) +
+    geom_density() +
+    facet_wrap(.~Parameter, scales = 'free') +
+    theme_tidybayes()
+```
+
+## Models 
+
+### Feature verification - treated items
+
+```{r}
+brm.features <- brm(response ~ 0 + Intercept +
+                      correct_productions.cen*timepoint + cat_meanT.cen +
+                      (timepoint*correct_productions.cen|player_deid) + (1|target),
+                    family = bernoulli(),
+                    data = treated_data %>%
+                      filter(feat_condition == 'features_ver'),
+                    iter = 3000,
+                    warmup = 1000,
+                    inits = 'random',
+                    control = list(adapt_delta = .97),
+                    prior = c(
+                      prior(normal(-1, 2), class = "b", coef = "Intercept"),
+                      prior(normal(0,2), class = "b")
+                    ),
+                    chains = 4,
+                    cores = 4,
+                    backend = 'cmdstan',
+                    file = here("Rdata", "brm.features"),
+                    file_refit = "on_change"
+)
+```
+
+### Facilitated Retrieval - treated items
+
+```{r}
+brm.easy <- brm(response ~ 0 + Intercept +
+                      correct_productions.cen*timepoint + cat_meanT.cen +
+                      (timepoint*correct_productions.cen|player_deid) + (1|target),
+                family = bernoulli(),
+                data = treated_data %>%
+                  filter(feat_condition == 'primed_ret'),
+                iter = 3000,
+                warmup = 1000,
+                inits = 'random',
+                control = list(adapt_delta = .98),
+                prior = c(
+                  prior(normal(-1, 2), class = "b", coef = "Intercept"),
+                  prior(normal(0,2), class = "b")
+                ),
+                chains = 4,
+                cores = 4,
+                backend = 'cmdstan',
+                file = here("Rdata", "brm.easy"),
+                    file_refit = "on_change"
+)
+```
+
+### Hard retrieval practice - treated items
+
+```{r}
+brm.hard <- brm(response ~ 0 + Intercept +
+                      correct_productions.cen*timepoint + cat_meanT.cen +
+                      (timepoint*correct_productions.cen|player_deid) + (1|target),
+                family = bernoulli(),
+                data = treated_data %>%
+                  filter(feat_condition == 'unprimed_ret'),
+                iter = 3000,
+                warmup = 1000,
+                inits = 'random',
+                control = list(adapt_delta = .99),
+                prior = c(
+                  prior(normal(-1, 2), class = "b", coef = "Intercept"),
+                  prior(normal(0,2), class = "b")
+                ),
+                chains = 4,
+                cores = 4,
+                backend = 'cmdstan',
+                file = here("Rdata", "brm.hard"),
+                    file_refit = "on_change"
+)
+```
+
+# Untreated Models
+
+## Plot changes in naming accuracy
+
+```{r}
+related_data %>%
+  filter(feat_condition == 'unprimed_ret') %>%
+  mutate(timepoint = ifelse(timepoint == 'baseline', 0,
+                            ifelse(timepoint == 'exit', 1, 2))) %>%
+  group_by(player_deid, timepoint) %>%
+  summarize(response = mean(response)) %>%
+  ggplot(aes(timepoint, y = response, color = player_deid, group = player_deid)) +
+  geom_point(size = 1.5) +
+  geom_line() +
+  ylim(0,1)
+```
+
+  
+## Setup contrasts for related data
+
+```{r}
+
+related_data$timepoint <- relevel(related_data$timepoint, ref = "baseline")
+contrasts(related_data$timepoint) <- contr.treatment(3)
+colnames(contrasts(related_data$timepoint)) <- c('baseline_v_exit',
+                                                'baseline_v_followup')
+
+contrasts(related_data$timepoint)
+
+```
+
+## Models 
+
+### Feature verification - untreated items
+
+```{r}
+brm.features.r <- brm(response ~ 0 + Intercept +
+                        correct_productions.cen*timepoint + cat_meanT.cen +
+                        (timepoint*correct_productions.cen|player_deid) + (1|target),
+                      family = bernoulli(),
+                      data = related_data %>% filter(feat_condition == 'features_ver'),
+                      iter = 3000,
+                      warmup = 1000,
+                      inits = 'random',
+                      control = list(adapt_delta = .97),
+                      prior = c(
+                        prior(normal(-1, 2), class = "b", coef = "Intercept"),
+                        prior(normal(0,2), class = "b")
+                      ),
+                      chains = 4,
+                      cores = 4,
+                      backend = 'cmdstan',
+                file = here("Rdata", "brm.features.r"),
+                    file_refit = "on_change"
+)
+```
+
+### Facilitated Retrieval - untreated items
+
+```{r}
+brm.easy.r <- brm(response ~ 0 + Intercept +
+                        correct_productions.cen*timepoint + cat_meanT.cen +
+                        (timepoint*correct_productions.cen|player_deid) + (1|target),
+                      family = bernoulli(),
+                      data = related_data %>%
+                    filter(feat_condition == 'primed_ret'),
+                  iter = 3000,
+                  warmup = 1000,
+                  inits = 'random',
+                  control = list(adapt_delta = .95),
+                  prior = c(
+                    prior(normal(-1, 2), class = "b", coef = "Intercept"),
+                    prior(normal(0,2), class = "b")
+                  ),
+                  chains = 4,
+                  cores = 4,
+                  backend = 'cmdstan',
+                file = here("Rdata", "brm.easy.r"),
+                    file_refit = "on_change"
+)
+```
+
+### Effortful Retrieval - untreated items
+
+```{r}
+brm.hard.r <- brm(response ~ 0 + Intercept +
+                        correct_productions.cen*timepoint + cat_meanT.cen +
+                        (timepoint*correct_productions.cen|player_deid) + (1|target),
+                      family = bernoulli(),
+                      data = related_data %>%
+                    filter(feat_condition == 'unprimed_ret'),
+                  iter = 3000,
+                  warmup = 1000,
+                  inits = 'random',
+                  control = list(adapt_delta = .98),
+                  prior = c(
+                    prior(normal(-1, 2), class = "b", coef = "Intercept"),
+                    prior(normal(0,2), class = "b")
+                  ),
+                  chains = 4,
+                  cores = 4,
+                  backend = 'cmdstan',
+                file = here("Rdata", "brm.hard.r"),
+                    file_refit = "on_change"
+)
+
+```
+
+# Diagnostics 
+
+```{r}
+brmsfits <- function(x) inherits(get(x), 'brmsfit' )
+models <- Filter(brmsfits, ls())
+models <- models[-7]
+```
+
+## Check for divergent transitions
+
+```{r}
+
+check_divergent <- Vectorize(function(model_name){
+return(sum(subset(nuts_params(get(model_name)), Parameter == "divergent__")$Value))
+})
+
+tibble(model = models) %>%
+  mutate(div_transitions = check_divergent(model)) 
+
+```
+
+## Traceplots {.tabset}
+
+not run, because extremely computational expensive. Recommend running on each individual model...
+
+```{r, results = "asis", eval = F}
+
+pp_checks <- list()
+for (i in models){
+  pp_checks[[i]] <- plot(get(i))
+}
+
+for (i in seq_along(pp_checks)){
+  tmp = pp_checks[i]
+  cat("###", names(pp_checks)[i], " \n")
+  print(tmp[1])
+  cat(' \n\n')
+}
+
+```
+
+## Visual Posterior Predictive Check {.tabset}
+
+```{r, results = "asis"}
+
+pp_checks <- list()
+for (i in models){
+  pp_checks[[i]] <- brms::pp_check(get(i), nsamples = 500)
+}
+
+for (i in seq_along(pp_checks)){
+  tmp = pp_checks[i]
+  cat("###", names(pp_checks)[i], " \n")
+  print(tmp[1])
+  cat(' \n\n')
+}
+
+```
+
+## Check Rhat and ESS
+
+Bulk and tail ESS > 400 and rhat < 1.01
+
+```{r}
+
+diags = list()
+for(i in models){
+  tmp_sum = summary(get(i))
+  tmp_fixed = as_tibble(tmp_sum$fixed, rownames = "parameter")
+  tmp_random = as_tibble(tmp_sum$random$target_word, rownames = "parameter")
+  params = bind_rows(tmp_fixed, tmp_random)
+  diags[[i]] <- params
+}
+
+bind_rows(diags, .id = "id") %>%
+  select(id, parameter, Rhat:Tail_ESS) %>%
+  group_by(id) %>%
+  summarize(rhat_max = max(Rhat),
+            bulk_ess_min = min(Bulk_ESS),
+            Tail_ESS = min(Tail_ESS))
+
+```
+
+
+# Model Results 
+
+## Tables
+
+(a little wrangling here...)
+
+```{r, class.source = "fold-hide"}
+parameters = c(
+              'Intercept',
+              'Num. correct (centered, z)',
+              'Timepoint baseline v exit',
+              'Timepoint baseline v followup',
+              'CAT (centered, z)',
+              'Num. correct x timepoint baseline v exit',
+              'Num. correct x timepoint baseline v followup',
+              'sd (Intercept)',
+              'sd (Timepoint baseline v exit)',
+              'sd (Timepoint baseline v followup)',
+              'sd (Num. correct (centered, z))',
+              'sd (Num. correct x timepoint baseline v exit)',
+              'sd (Num. correct x timepoint baseline v followup)',
+              'sd (Intercept)'
+)
+
+# takes 3 arguments
+# a model name, a parameter name, and where to insert the effects labels
+text_ready2 <- function(model_name, parameter_names){
+
+tmp = get(model_name)
+params = get(parameter_names)
+dat = broom.mixed::tidy(tmp, conf.level = .9) %>% 
+  filter(str_detect(term, "cor__", negate = T)) %>%
+  #filter(effect == "fixed") %>% 
+  mutate(
+    # round the numbers
+    across(
+      c(estimate, conf.low, conf.high), 
+      printy::fmt_fix_digits, 
+      2
+    ),
+    se = printy::fmt_fix_digits(std.error, 3),
+    # use a minus sign instead of a hyphen for negative numbers
+    # across(
+    #   c(estimate, conf.low, conf.high), 
+    #   printy::fmt_minus_sign
+    # ),
+    ci = glue::glue("{conf.low}, {conf.high}")
+  ) %>% 
+  select(Parameter = term, Estimate = estimate, "Est. Error" = se, "90% CI" = ci) %>%
+  mutate(Parameter = params)%>%
+  add_row(Parameter = 'Population level effects', .before = 1) %>%
+  add_row(Parameter = 'Group level effects (Participant)', .before = 9) %>%
+  add_row(Parameter = 'Group level effects (Target)', .before = 16) %>%
+
+
+  mutate(model_name = model_name)
+return(dat)
+} 
+
+
+
+```
+
+## {.tabset}
+
+```{r, echo = F, results = "asis"}
+
+to_map <- list(
+  model_name = models,
+  parameter_names = rep("parameters",6)
+  )
+
+df_models <- bind_rows(pmap(to_map, text_ready2)) 
+
+results <- df_models %>%
+  select(param = 1, est = 2, ci = 4, model_name = 5) %>%
+  mutate(#param = janitor::make_clean_names(param),
+         ci = paste0('[', ci, ']')) %>%
+  printy::super_split(model_name)
+
+for (i in seq_along(models)){
+  tmp = results[[i]] %>% select(-4)
+  cat("###", models[i], " \n")
+  print(knitr::kable(tmp))
+  cat(' \n\n')
+}
+```
+
+
+## Plotting Code
+
+Data wrangling for plotting (hidden)
+
+```{r class.source = 'fold-hide'}
+
+pnt_corr <-read_csv(here('data', 'pnt_deid.csv'))
+
+r1 = brm.hard %>%
+  spread_draws(`b_correct_productions.cen:timepointbaseline_v_exit`, r_player_deid[player_deid,term]) %>%
+  group_by(player_deid, term) %>%
+  filter(term == "timepointbaseline_v_exit:correct_productions.cen") %>%
+  mutate(r_player_deid = r_player_deid + `b_correct_productions.cen:timepointbaseline_v_exit`) %>%
+  group_by(player_deid, term) %>%
+  left_join(pnt_corr, by = 'player_deid') %>%
+  mutate(median = median(r_player_deid),
+         score = as.numeric(score),
+         which = 'Effortful: Exit') %>%
+  droplevels() %>%
+  group_by(player_deid) %>%
+  mutate(xint = median(`b_correct_productions.cen:timepointbaseline_v_exit`))%>%
+  select(-`b_correct_productions.cen:timepointbaseline_v_exit`)
+
+r2 = brm.hard %>%
+  spread_draws(`b_correct_productions.cen:timepointbaseline_v_followup`, r_player_deid[player_deid,term]) %>%
+  group_by(player_deid, term) %>%
+  filter(term == "timepointbaseline_v_followup:correct_productions.cen") %>%
+  mutate(r_player_deid = r_player_deid + `b_correct_productions.cen:timepointbaseline_v_followup`) %>%
+  group_by(player_deid, term) %>%
+  left_join(pnt_corr, by = 'player_deid') %>%
+  mutate(median = median(r_player_deid),
+         score = as.numeric(score),
+         which = 'Effortful: Follow-up') %>%
+  droplevels() %>%
+  group_by(player_deid) %>%
+  mutate(xint = median(`b_correct_productions.cen:timepointbaseline_v_followup`))%>%
+  select(-`b_correct_productions.cen:timepointbaseline_v_followup`)
+
+r3 = brm.easy %>%
+  spread_draws(`b_correct_productions.cen:timepointbaseline_v_exit`, r_player_deid[player_deid,term]) %>%
+  group_by(player_deid, term) %>%
+  filter(term == "timepointbaseline_v_exit:correct_productions.cen") %>%
+  mutate(r_player_deid = r_player_deid + `b_correct_productions.cen:timepointbaseline_v_exit`) %>%
+  group_by(player_deid, term) %>%
+  left_join(pnt_corr, by = 'player_deid') %>%
+  mutate(median = median(r_player_deid),
+         score = as.numeric(score),
+         which = 'Facilitated: Exit') %>%
+  droplevels() %>%
+  group_by(player_deid) %>%
+  mutate(xint = median(`b_correct_productions.cen:timepointbaseline_v_exit`))%>%
+  select(-`b_correct_productions.cen:timepointbaseline_v_exit`)
+
+r4 = brm.easy %>%
+  spread_draws(`b_correct_productions.cen:timepointbaseline_v_followup`, r_player_deid[player_deid,term]) %>%
+  group_by(player_deid, term) %>%
+  filter(term == "timepointbaseline_v_followup:correct_productions.cen") %>%
+  mutate(r_player_deid = r_player_deid + `b_correct_productions.cen:timepointbaseline_v_followup`) %>%
+  group_by(player_deid, term) %>%
+  left_join(pnt_corr, by = 'player_deid') %>%
+  mutate(median = median(r_player_deid),
+         score = as.numeric(score),
+         which = 'Facilitated: Follow-up') %>%
+  droplevels() %>%
+  group_by(player_deid) %>%
+  mutate(xint = median(`b_correct_productions.cen:timepointbaseline_v_followup`))%>%
+  select(-`b_correct_productions.cen:timepointbaseline_v_followup`)
+
+r.all = bind_rows(r1, r2, r3, r4)
+```
+
+```{r class.source = 'fold-hide'}
+library(patchwork)
+
+newdat = expand_grid(
+  timepoint = c('baseline', 'exit', 'followup'),
+  correct_productions.cen = c(-1, 0, 1),
+  cat_meanT.cen = 0
+)
+
+preds1 = as_tibble(fitted(brm.features, newdata = newdat, re_formula = NA, probs = c(0.05, .95))) %>%
+  mutate(
+    Component = "Feature Verification",
+    Condition = "Treated",
+    model = "brm.features"
+  )%>%
+  bind_cols(newdat)
+
+preds2 = as_tibble(fitted(brm.easy, newdata = newdat, re_formula = NA, probs = c(0.05, .95)))%>%
+  mutate(
+    Component = "Facilitated Retrieval",
+    Condition = "Treated",
+    model = "brm.easy"
+  )%>%
+  bind_cols(newdat)
+
+preds3 = as_tibble(fitted(brm.hard, newdata = newdat, re_formula = NA, probs = c(0.05, .95)))%>%
+  mutate(
+    Component = "Effortful Retrieval",
+    Condition = "Treated",
+    model = "brm.hard"
+  )%>%
+  bind_cols(newdat)
+
+preds4 = as_tibble(fitted(brm.features.r, newdata = newdat, re_formula = NA, probs = c(0.05, .95)))%>%
+  mutate(
+    Component = "Feature Verification",
+    Condition = "Related",
+    model = "brm.features.r"
+  )%>%
+  bind_cols(newdat)
+
+preds5 = as_tibble(fitted(brm.easy.r, newdata = newdat, re_formula = NA, probs = c(0.05, .95)))%>%
+  mutate(
+    Component = "Facilitated Retrieval",
+    Condition = "Related",
+    model = "brm.easy.r"
+  )%>%
+  bind_cols(newdat)
+
+preds6 = as_tibble(fitted(brm.hard.r, newdata = newdat, re_formula = NA, probs = c(0.05, .95)))%>%
+  mutate(
+    Component = "Effortful Retrieval",
+    Condition = "Related",
+    model = "brm.hard.r"
+  ) %>%
+  bind_cols(newdat)
+
+preds = bind_rows(preds1, preds2, preds3, preds4, preds5, preds6) %>%
+  mutate(Condition = factor(Condition,
+                            levels = c('Treated', 'Related')),
+         Component = factor(Component,
+                            levels = c('Feature Verification',
+                                       'Facilitated Retrieval',
+                                       'Effortful Retrieval'))
+  )
+```
+
+## Plotting model results
+
+```{r fig.width = 8}
+preds %>%
+  ggplot(aes(x = timepoint, y = Estimate, color = as.factor(correct_productions.cen))) +
+    geom_point(position = position_dodge(width = .5), size = 2) +
+    geom_errorbar(aes(ymin = Q5, ymax = Q95), position = position_dodge(width = .5), size = 1) +
+  facet_grid(Condition~Component) +
+    scale_y_continuous(breaks = seq(0,1,.2), labels = seq(0,1,.2), limits = c(0,1)) +
+  labs(y = "Predicted percent correct",
+       x = NULL,
+       color = "Number of correct attempts (z-score; sd)",
+       title = "Relationship between components and treatment response")+
+  theme_ipsum_rc(grid = "XY") +
+  #scale_color_manual(values = rev(brewer.pal(6, "Blues")[4:6])) +
+  theme(legend.position = "bottom",
+        panel.spacing = unit(1, "lines"),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        strip.text = element_text(size = 12),
+        plot.margin = unit(c(4,1,1,1), "mm"))
+```
+
+## Plotting individual effects
+
+```{r, fig.width = 10}
+r.all %>% ungroup() %>%
+  mutate(which = factor(which, levels = c('Facilitated: Exit',
+                                          'Facilitated: Follow-up',
+                                          'Effortful: Exit',
+                                          'Effortful: Follow-up')),
+         player_deid = reorder_within(player_deid, median, which)) %>%
+  ggplot(aes(y = player_deid, x = r_player_deid, fill = score)) +
+  stat_halfeye(position = position_dodge()) +
+  facet_wrap(~which, scales = 'free_y', nrow = 1) +
+  scale_y_reordered() +
+  geom_vline(aes(xintercept = xint), linetype = 'dashed', color = 'darkred') +
+  geom_vline(aes(xintercept = 0)) +
+  coord_cartesian(xlim=c(-2, 3)) +
+  labs(y = NULL,
+       x = "participant adjusted retrieval x timepoint interaction term",
+       fill = "PNT",
+       title = "Individual differences in practice-related interaction effect") +
+  theme_ipsum_rc(grid="XY") +
+  theme(panel.spacing = unit(.1, "lines"),
+        plot.margin = unit(c(1,1,1,1), "mm"),
+        legend.position = "bottom")
+```
+
+# Results Text
+
+- Decide how we want to report the main effects of timepoint - remember they are for the average number of correct attempts at [component] not overall so there will be some variation. we should make this clear. 
+
+<div>
+
+<!-- Trigger -->
+
+<button class="btn" data-clipboard-target="#copy1" style="float:right;">
+
+`r icon::fa("copy")`
+
+</button>
+
+::: {#copy1}
+
+*Treated items*
+
+Results from the three models for treated items reported in Table 2. For all models, coefficients are reported in logits (i.e., the log odds of a correct response). For the feature verification model, there were main effects of time point, indicating that words that were difficult during the baseline phase improved substantially from treatment baseline to treatment exit ($\beta$ = `r results$brm.features$est[4]`, 90% CI: `r results$brm.features$ci[4]`) and from treatment baseline to treatment follow-up ($\beta$ = `r results$brm.features$est[5]`, 90% CI: `r results$brm.features$ci[5]`). However neither the interaction between the number of correct features verified and change in naming accuracy from entry to exit ($\beta$ = `r results$brm.features$est[7]`, 90% CI: `r results$brm.features$ci[7]`) or baseline to followup ($\beta$ = `r results$brm.features$est[8]`, 90% CI: `r results$brm.features$ci[8]`) was reliably different from zero, providing little evidence that more feature verifications translated to greater improvements in naming accuracy. 
+
+For the facilitated retrieval model, there were similar main effects of time point. However, the 90% credible interval for the interaction between the number of correct facilitated retrievals and time point largely excluded zero from baseline to treatment exit ($\beta$ = `r results$brm.easy$est[7]`, 90% CI: `r results$brm.easy$ci[7]`) and did exclude zero from baseline to treatment followup ($\beta$ = `r results$brm.easy$est[8]`, 90% CI: `r results$brm.easy$ci[8]`), proving weak to modest evidence that more correct facilitated retrieval attempts were associated with greater improvements in naming accuracy. The posterior probability that these interaction estimates were greater than zero were `r round(brms::hypothesis(brm.easy, "correct_productions.cen:timepointbaseline_v_exit > 0")$hypothesis$Post.Prob, 2)` and `r round(brms::hypothesis(brm.easy, "correct_productions.cen:timepointbaseline_v_followup > 0")$hypothesis$Post.Prob, 2)` respectively.  For the effortful retrieval model, these interaction estimates were relatively similar in size, but substantially more reliable from baseline to exit  ($\beta$ = `r results$brm.hard$est[7]`, 90% CI: `r results$brm.hard$ci[7]`) and baseline to followup  ($\beta$ = `r results$brm.hard$est[8]`, 90% CI: `r results$brm.hard$ci[8]`), providing strong evidence that more successful effortful retrievals during treatment was associated with improvement in naming accuracy from baseline to exit and followup. 
+
+:::
+
+</div>
+
+<div>
+
+<!-- Trigger -->
+
+<button class="btn" data-clipboard-target="#copy2" style="float:right;">
+
+`r icon::fa("copy")`
+
+</button>
+
+::: {#copy2}
+
+*Untreated items*
+
+Results from the three models for semantically related, untreated items reported in Table 3. For all models, coefficients are reported in logits (i.e., the log odds of a correct response). For the feature verification model, there was main effect of time point from baseline to treatment exit ($\beta$ = `r results$brm.features.r$est[4]`, 90% CI: `r results$brm.features.r$ci[4]`), indicating that related, untreated words that were difficult during the baseline phase improved from treatment baseline to treatment exit, but not reliably from baseline to treatment followup ($\beta$ = `r results$brm.features.r$est[5]`, 90% CI: `r results$brm.features.r$ci[5]`). This main effect was similar across the facilitated and effortful retrieval models. Furthermore, none of the interactions between successful practice attempts across components and timepoint were reliably different from zero.
+
+:::
+
+</div>
+
+# Tables for Paper
+
+```{r class.source = 'fold-hide'}
+
+parameters_paper = c(
+              'Intercept',
+              'Num. correct (centered, z)',
+              'Timepoint baseline v exit',
+              'Timepoint baseline v followup',
+              'CAT (centered, z)',
+              'Num. correct x timepoint baseline v exit',
+              'Num. correct x timepoint baseline v followup'
+)
+
+# takes 3 arguments
+# a model name, a parameter name, and where to insert the effects labels
+
+treated_models = models[c(3,1,5)]
+untreated_models = models[c(2,4,6)]
+
+tx.list <- list()
+for(i in treated_models){
+  tmp = get(i)
+  dat = broom.mixed::tidy(tmp, conf.level = .9, effects = "fixed") %>% 
+    mutate(
+      across(
+        c(estimate, conf.low, conf.high), 
+        printy::fmt_fix_digits, 
+        2
+      ),
+      se = printy::fmt_fix_digits(std.error, 3),
+      ci = glue::glue("{conf.low}, {conf.high}")
+    ) %>% 
+    select(Parameter = term, Estimate = estimate, "Est. Error" = se, "90% CI" = ci) %>%
+    mutate(Parameter = parameters_paper)%>%
+    add_row(Parameter = 'Population level effects', .before = 1)
+  tx.list[[i]] = dat
+}
+
+untx.list <- list()
+for(i in untreated_models){
+  tmp = get(i)
+  dat = broom.mixed::tidy(tmp, conf.level = .9, effects = "fixed") %>% 
+    mutate(
+      across(
+        c(estimate, conf.low, conf.high), 
+        printy::fmt_fix_digits, 
+        2
+      ),
+      se = printy::fmt_fix_digits(std.error, 3),
+      ci = glue::glue("{conf.low}, {conf.high}")
+    ) %>% 
+    select(Parameter = term, Estimate = estimate, "Est. Error" = se, "90% CI" = ci) %>%
+    mutate(Parameter = parameters_paper)%>%
+    add_row(Parameter = 'Population level effects', .before = 1)
+  untx.list[[i]] = dat
+}
+
+
+tx.results = bind_rows(tx.list, .id = "Model") %>%
+  mutate(Model= ifelse(is.na(Estimate), Model, NA),
+         Model = ifelse(Model == "brm.features", "Feature Verification",
+                        ifelse(Model == "brm.easy", "Facilitated Retrieval",
+                               ifelse(Model == "brm.hard", "Effortful Retrieval", NA))))
+
+untx.results = bind_rows(untx.list, .id = "Model") %>%
+  mutate(Model= ifelse(is.na(Estimate), Model, NA),
+         Model = ifelse(Model == "brm.features.r", "Feature Verification",
+                        ifelse(Model == "brm.easy.r", "Facilitated Retrieval",
+                               ifelse(Model == "brm.hard.r", "Effortful Retrieval", NA))))
+
+```
+
+Tables for the paper are saved/updated to the working directory using {flextable}:
+
+```{r}
+
+# note: The dataframe you would like exported in near APA format goes in the qflextable() function:
+
+library(flextable)
+library(officer)
+set_flextable_defaults(
+  font.family = "Times New Roman", 
+  font.size = 11,
+  font.color = "black",
+  table.layout = "fixed",
+  digits = 2,
+  theme_fun = "theme_booktabs",
+  line_spacing = 1,
+  table_layout(type = "autofit")
+  )
+
+read_docx() %>% body_add_flextable(value = qflextable(tx.results) %>% set_caption(caption = "Table 2. Treated Words"))  %>% print(target = here("table2-treated-words.docx"))
+
+read_docx() %>% body_add_flextable(value = qflextable(untx.results) %>% set_caption(caption = "Table 3. Untreated Words"))  %>% print(target = here("table3-untreated-words.docx"))
+```
+
+
+# Session Info
+
+```{r}
+as_tibble(unlist(devtools::session_info()$platform), rownames = "setting") %>%
+  rmarkdown::paged_table()
+```
+
+```{r}
+as_tibble(devtools::session_info()$packages) %>% select(package, version = loadedversion, date, source) %>%
+  rmarkdown::paged_table()
+```
+
+
